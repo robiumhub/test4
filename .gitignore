@@ -1,0 +1,9 @@
+# Dependencies & build artifacts
+node_modules/
+dist/
+build/
+.cache/
+.venv/
+__pycache__/
+.DS_Store
+*.log
