@@ -1,0 +1,13 @@
+# Service definition for generic robot API command execution
+# This allows any client to call any robot API function with JSON arguments
+
+# Request
+string function_name          # Name of the API function to call (e.g., "go_to_pose", "add_waypoint")
+string args_json             # Function arguments as JSON string (e.g., '{"x": 1.0, "y": 2.0, "yaw": 90}')
+
+---
+
+# Response  
+bool success                 # True if command was accepted/completed successfully
+string message              # Human-readable result or error message
+string data_json            # Complex return data as JSON string (empty if no data returned) 

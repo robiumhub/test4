@@ -1,12 +1,22 @@
 version: '3.9'
 services:
   app:
-    build: .
+    build:
+      context: .
+      network: host
+    network_mode: host
     container_name: test4-dev
     working_dir: /workspace
     command: tail -f /dev/null
     volumes:
       - ./:/workspace
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+    environment:
+      - ROS_DISTRO=humble
+      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      - DISPLAY=${DISPLAY}
+    devices:
+      - /dev/bus/usb:/dev/bus/usb
     ports:
       - "8080:8080"
     dns:

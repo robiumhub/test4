@@ -1,0 +1,35 @@
+spatibot_gui_node:
+  ros__parameters:
+    default_map: "/workspaces/isaac_ros-dev/maps/garage.yaml"
+    # Topic names
+    camera_topic: "/oakd/rgb/preview/image_raw"
+    odometry_topic: "/odom"
+    path_topic: "/plan"
+    scan_topic: "/scan"
+    cmd_vel_topic: "/cmd_vel"
+    goal_pose_topic: "/goal_pose"
+    
+    # Docking action names
+    dock_action: "/dock"
+    undock_action: "/undock"
+    
+    # Movement limits
+    max_linear_velocity: 1.0
+    max_angular_velocity: 2.0
+    
+    # GUI settings
+    window_width: 1200
+    window_height: 800
+    image_max_size: 400
+    
+    # Update rates
+    gui_update_rate: 30.0  # Hz
+    plot_update_rate: 10.0  # Hz
+    
+    # Trajectory settings
+    max_trajectory_points: 1000
+    trajectory_line_width: 2.0
+    
+    # Safety settings
+    enable_emergency_stop: true
+    emergency_stop_timeout: 5.0  # seconds 

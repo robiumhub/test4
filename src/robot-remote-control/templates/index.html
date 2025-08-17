@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Robot Remote Control</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f0f2f5; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .header { text-align: center; color: #333; margin-bottom: 30px; }
+        .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .panel { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .btn { padding: 12px 24px; margin: 5px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-danger { background: #dc3545; color: white; }
+        .btn-success { background: #28a745; color: white; }
+        .movement-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; max-width: 300px; margin: 20px auto; }
+        .status { background: #e9ecef; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        #status-output { background: #2d3748; color: white; padding: 15px; border-radius: 8px; height: 200px; overflow-y: auto; font-family: monospace; }
+        .camera-section { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-top: 20px; }
+        .camera-display { text-align: center; margin: 15px 0; }
+        .camera-placeholder { background: #f8f9fa; border: 2px dashed #dee2e6; border-radius: 8px; padding: 40px; color: #6c757d; }
+        .camera-image { max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .camera-controls { text-align: center; margin: 15px 0; }
+        .camera-status { font-size: 0.9rem; color: #6c757d; text-align: center; margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 Robot Remote Control</h1>
+            <p>Web interface for robot control</p>
+        </div>
+
+        <div class="controls">
+            <div class="panel">
+                <h3>🕹️ Movement Controls (Velocity)</h3>
+                <div class="movement-grid">
+                    <div></div>
+                    <button class="btn btn-primary" onclick="setVelocity('forward')">⬆️ Forward</button>
+                    <div></div>
+                    <button class="btn btn-primary" onclick="setVelocity('left')">⬅️ Left</button>
+                    <button class="btn btn-danger" onclick="setVelocity('stop')">🛑 STOP</button>
+                    <button class="btn btn-primary" onclick="setVelocity('right')">➡️ Right</button>
+                    <div></div>
+                    <button class="btn btn-primary" onclick="setVelocity('backward')">⬇️ Backward</button>
+                    <div></div>
+                </div>
+                
+                <div>
+                    <label>Speed: <input type="number" id="speed" value="0.2" step="0.1" min="0.1" max="1.0"> m/s</label>
+                </div>
+                
+                <h3>🔧 Robot Actions</h3>
+                <button class="btn btn-success" onclick="dockRobot()">🔌 Dock</button>
+                <button class="btn btn-success" onclick="undockRobot()">🔓 Undock</button>
+                <button class="btn btn-primary" onclick="refreshStatus()">🔄 Refresh Status</button>
+            </div>
+
+            <div class="panel">
+                <h3>📊 Robot Status</h3>
+                <div class="status">
+                    <div><strong>Connection:</strong> <span id="connection-status">Checking...</span></div>
+                    <div><strong>Last Update:</strong> <span id="last-update">Never</span></div>
+                </div>
+                
+                <h3>📋 System Info</h3>
+                <button class="btn btn-primary" onclick="getRosNodes()">📋 ROS Nodes</button>
+                <button class="btn btn-primary" onclick="getRosTopics()">📡 ROS Topics</button>
+                <button class="btn btn-primary" onclick="checkHealth()">❤️ Health Check</button>
+
+                <h3>📝 Output</h3>
+                <div id="status-output">Click any button to see output...</div>
+            </div>
+        </div>
+
+        <div class="camera-section">
+            <h3>📷 Camera View</h3>
+            <div class="camera-display">
+                <div class="camera-placeholder" id="camera-placeholder">
+                    📷 Click "Get Current Image" to view camera feed
+                </div>
+                <img class="camera-image" id="camera-image" style="display: none;" alt="Robot Camera">
+            </div>
+            <div class="camera-controls">
+                <button class="btn btn-primary" onclick="getCurrentImage()">📸 Get Current Image</button>
+                <button class="btn btn-primary" onclick="toggleAutoRefresh()" id="auto-refresh-btn">🔄 Auto Refresh</button>
+            </div>
+            <div class="camera-status" id="camera-status">Camera topic: /oakd/rgb/preview/image_raw</div>
+        </div>
+    </div>
+
+    <script>
+        async function apiCall(url, method = 'GET') {
+            try {
+                const response = await fetch(url, { method: method });
+                const data = await response.json();
+                return data;
+            } catch (error) {
+                return { success: false, error: error.message };
+            }
+        }
+
+        function updateStatusDisplay(data, title = "Status") {
+            const output = document.getElementById('status-output');
+            const timestamp = new Date().toLocaleTimeString();
+            
+            let displayText = `[${timestamp}] ${title}:\n`;
+            displayText += JSON.stringify(data, null, 2);
+            
+            output.textContent = displayText;
+            document.getElementById('last-update').textContent = timestamp;
+            
+            const connectionStatus = data.success ? "🟢 Connected" : "🔴 Disconnected";
+            document.getElementById('connection-status').textContent = connectionStatus;
+        }
+
+        async function setVelocity(direction) {
+            const speed = parseFloat(document.getElementById('speed').value);
+            const result = await apiCall(`/api/velocity/${direction}?speed=${speed}`, 'POST');
+            updateStatusDisplay(result, `Velocity ${direction.toUpperCase()}`);
+        }
+
+        async function dockRobot() {
+            const result = await apiCall('/api/control/dock', 'POST');
+            updateStatusDisplay(result, "Dock Robot");
+        }
+
+        async function undockRobot() {
+            const result = await apiCall('/api/control/undock', 'POST');
+            updateStatusDisplay(result, "Undock Robot");
+        }
+
+        async function refreshStatus() {
+            const result = await apiCall('/api/status');
+            updateStatusDisplay(result, "Robot Status");
+        }
+
+        async function getRosNodes() {
+            const result = await apiCall('/api/nodes');
+            updateStatusDisplay(result, "ROS Nodes");
+        }
+
+        async function getRosTopics() {
+            const result = await apiCall('/api/topics');
+            updateStatusDisplay(result, "ROS Topics");
+        }
+
+        async function checkHealth() {
+            const result = await apiCall('/api/health');
+            updateStatusDisplay(result, "Health Check");
+        }
+
+        // Camera functions
+        let autoRefreshInterval = null;
+        let autoRefreshEnabled = false;
+
+        async function getCurrentImage() {
+            console.log('🔍 getCurrentImage() called');
+            const result = await apiCall('/api/camera/current');
+            console.log('📡 API result:', result);
+            updateStatusDisplay(result, "Get Current Image");
+            
+            if (result.success && result.output) {
+                try {
+                    // Extract data_json from the ROS service response
+                    const outputStr = result.output;
+                    console.log('📝 Raw output:', outputStr);
+                    
+                    // Find the data_json field in the output
+                    const startMarker = "data_json='";
+                    const endMarker = "')";
+                    
+                    const startIndex = outputStr.indexOf(startMarker);
+                    const endIndex = outputStr.lastIndexOf(endMarker);
+                    
+                    if (startIndex === -1 || endIndex === -1) {
+                        throw new Error('Could not find data_json in output');
+                    }
+                    
+                    const jsonStr = outputStr.substring(startIndex + startMarker.length, endIndex);
+                    console.log('🔍 Extracted JSON (raw):', jsonStr);
+                    
+                    // Unescape the JSON
+                    const unescapedJson = jsonStr.replace(/\\"/g, '"');
+                    console.log('🔧 Unescaped JSON:', unescapedJson);
+                    
+                    // Parse the camera data
+                    const cameraData = JSON.parse(unescapedJson);
+                    console.log('✅ Parsed camera data:', cameraData);
+                    
+                    if (cameraData.success && cameraData.image_base64) {
+                        console.log('🖼️ Showing image...');
+                        showImageFromBase64(cameraData.image_base64);
+                        
+                        // Update camera status
+                        const status = document.getElementById('camera-status');
+                        status.textContent = `Camera: ${cameraData.width}x${cameraData.height} | ${cameraData.encoding} | ${new Date(cameraData.timestamp).toLocaleTimeString()}`;
+                    } else {
+                        console.log('❌ No valid image data');
+                        const placeholder = document.getElementById('camera-placeholder');
+                        const img = document.getElementById('camera-image');
+                        
+                        img.style.display = 'none';
+                        placeholder.style.display = 'block';
+                        placeholder.textContent = cameraData.message || "Camera not available";
+                    }
+                } catch (e) {
+                    console.error('💥 Error parsing camera data:', e);
+                    console.error('📄 Raw output was:', result.output);
+                    const placeholder = document.getElementById('camera-placeholder');
+                    const img = document.getElementById('camera-image');
+                    
+                    img.style.display = 'none';
+                    placeholder.style.display = 'block';
+                    placeholder.textContent = "Error parsing camera data - check console";
+                }
+            } else {
+                console.log('❌ API call failed or no output');
+                const placeholder = document.getElementById('camera-placeholder');
+                const img = document.getElementById('camera-image');
+                
+                img.style.display = 'none';
+                placeholder.style.display = 'block';
+                placeholder.textContent = result.message || "Camera not available";
+            }
+        }
+
+        function showImageFromBase64(base64Data) {
+            const placeholder = document.getElementById('camera-placeholder');
+            const img = document.getElementById('camera-image');
+            
+            // Convert base64 to data URL
+            img.src = `data:image/jpeg;base64,${base64Data}`;
+            img.style.display = 'block';
+            placeholder.style.display = 'none';
+        }
+
+        function toggleAutoRefresh() {
+            const button = document.getElementById('auto-refresh-btn');
+            
+            if (autoRefreshEnabled) {
+                // Stop auto refresh
+                clearInterval(autoRefreshInterval);
+                autoRefreshInterval = null;
+                autoRefreshEnabled = false;
+                button.textContent = "🔄 Auto Refresh";
+                button.classList.remove('btn-danger');
+                button.classList.add('btn-primary');
+            } else {
+                // Start auto refresh
+                autoRefreshInterval = setInterval(getCurrentImage, 1000); // Refresh every second
+                autoRefreshEnabled = true;
+                button.textContent = "⏹️ Stop Refresh";
+                button.classList.remove('btn-primary');
+                button.classList.add('btn-danger');
+                
+                // Get initial image
+                getCurrentImage();
+            }
+        }
+
+        function executeCommand(command, args = {}) {
+            fetch('/api/execute_command', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    command: command,
+                    args: args
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Command result:', data);
+                updateStatus();  // Update status after command execution
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+        }
+
+        function refreshCameraFeed() {
+            const img = document.getElementById('cameraFeed');
+            if (img) {
+                img.src = '/oakd/rgb/preview/image_raw/compressed?' + new Date().getTime();
+            }
+        }
+
+        // Refresh camera feed every second
+        setInterval(refreshCameraFeed, 1000);
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            checkHealth();
+        });
+    </script>
+</body>
+</html>
